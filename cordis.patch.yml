@@ -1,0 +1,12 @@
+# dsh-bot-team-tab — bundle patch
+#
+# 只插入一行 Loader 条目：宿主侧是一个空壳（lib/index.js 不注册任何东西），
+# 真正的工作全在浏览器侧的 lib/client.js，由 exports['./client'] 交给 __ModuleLoader__。
+#
+# 想临时关掉这个页：在 profile 的 cordis.patch.yml 里按 id 覆盖即可——
+#   - id: bot-team-tab
+#     name: 'dsh-bot-team-tab'
+#     disabled: true
+- insert:
+    - id: bot-team-tab
+      name: 'dsh-bot-team-tab'

@@ -1,0 +1,45 @@
+{
+  "name": "dsh-bot-team-tab",
+  "version": "0.1.0",
+  "description": "团队 Tab for dsh-better-sidebar: a read-only roster of the DS Bot teammates — what each is doing, what it is stuck on and who is waiting.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "docs/验收.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "better-sidebar",
+    "ds-bot",
+    "team",
+    "roster"
+  ],
+  "peerDependencies": {
+    "dsh-better-sidebar": ">=0.30.0"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "engines": {
+      "dsh": ">=0.2.0-rc.1"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": []
+    }
+  }
+}
