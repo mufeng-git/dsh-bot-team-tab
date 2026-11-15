@@ -28,6 +28,16 @@ node --check lib/client.js
 
 改了 lib/client.js 之后**必须彻底退出 DSH 再启动**，客户端 bundle 只在 App 启动时装载，刷新页面不生效。
 
-## 安装（本机）
+## 安装
 
-已在 `C:/Users/Administrator/.dsh/profiles/desktop/package.json` 里以 `file:` 指向本工作区目录，并在 `dsh.profile.bundles` 中启用。改完源码后把 `lib/ package.json README.md cordis.patch.yml docs/` 同步到 `profiles/desktop/node_modules/dsh-bot-team-tab/`，再重启。
+**从 GitHub 装（换机器、重装 DSH 后恢复）**：仓库 `mufeng-git/dsh-bot-team-tab` 已公开，按 tag 发版。先把包名加进 profile 的 `dsh.profile.bundles`（`dsh-bot-team-tab`），再
+
+```
+dsh plugin --profile desktop add github:mufeng-git/dsh-bot-team-tab#v0.3.1
+```
+
+装完**彻底退出 DSH 再启动**。私有库用 `github:` 短写会 404（走 codeload 匿名下载），需要 `git+ssh://git@github.com/mufeng-git/dsh-bot-team-tab.git#v0.3.1` 或转公开。
+
+**本机开发用 `file:`**：`profiles/desktop/package.json` 里写 `"dsh-bot-team-tab": "file:C:/Users/Administrator/.dsh/bot/workspace/plugins/dsh-bot-team-tab"`，改完源码跑 `scripts/install-to-profile.cmd` 同步到 `profiles/desktop/node_modules/dsh-bot-team-tab/`，再重启。这条路上改一行就能测，不用每次 push。
+
+> 两种写法互斥：`github:` 装的是 tag 快照，本地改了不会生效；反复改插件时用 `file:`。
