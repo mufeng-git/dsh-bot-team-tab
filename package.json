@@ -1,7 +1,7 @@
 {
   "name": "dsh-bot-team-tab",
-  "version": "0.1.0",
-  "description": "团队 Tab for dsh-better-sidebar: a read-only roster of the DS Bot teammates — what each is doing, what it is stuck on and who is waiting.",
+  "version": "0.3.1",
+  "description": "One left-rail row per DS Bot teammate, labelled with the Bot's own name: click it and the workspace opens that Bot's session. Also adds a BOT chip on Bot sessions in the session list.",
   "type": "module",
   "license": "MIT",
   "private": true,
@@ -21,14 +21,11 @@
     "dsh",
     "dsh-plugin",
     "deepseek-harness",
-    "better-sidebar",
     "ds-bot",
     "team",
-    "roster"
+    "roster",
+    "sidebar"
   ],
-  "peerDependencies": {
-    "dsh-better-sidebar": ">=0.30.0"
-  },
   "dsh": {
     "manifestVersion": 1,
     "engines": {

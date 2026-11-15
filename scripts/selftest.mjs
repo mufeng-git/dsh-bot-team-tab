@@ -2,9 +2,9 @@
  * Offline self-test for dsh-bot-team-tab.
  *
  * Loads lib/client.js the way the browser does — a stub window.__ModuleLoader__
- * that keeps the factory, a stub require('react') — and drives the pure
- * classification, grouping and formatting code against fixtures shaped like
- * DS Bot 0.3.6's api/bot state answer. No browser, no DSH, no network.
+ * that keeps the factory, a stub require('react') — then checks the two things
+ * that can be wrong without a browser: how an api/bot answer is normalised, and
+ * which rows apply(ctx) registers.
  *
  *   node scripts/selftest.mjs
  */
@@ -21,157 +21,116 @@ const reactStub = {
   createElement: (type, props, ...children) => ({ type, props, children }),
   useState: (initial) => [typeof initial === 'function' ? initial() : initial, () => {}],
   useEffect: () => {},
-  useRef: (initial) => ({ current: initial }),
-  useMemo: (factory) => factory(),
   useCallback: (fn) => fn,
+  useSyncExternalStore: (subscribe, getSnapshot) => getSnapshot(),
 }
 
-let moduleExports = null
+let exported = null
 globalThis.window = {
+  localStorage: { getItem: () => null, setItem: () => {} },
   __ModuleLoader__: {
-    load: ({ id, factory }) => {
-      moduleExports = factory((name) => {
-        if (name === 'react') return reactStub
-        throw new Error('unexpected require: ' + name)
-      })
-      moduleExports.__id = id
+    load: ({ factory }) => {
+      exported = factory((name) => (name === 'react' ? reactStub : {}))
     },
   },
 }
+globalThis.document = undefined
 
-await readFile(clientPath, 'utf8')
-await import('file:///' + clientPath.split(path.sep).join('/'))
+const source = await readFile(clientPath, 'utf8')
+new Function('window', 'document', source)(globalThis.window, undefined)
+assert.ok(exported && exported.apply && exported.__internals, 'the bundle must export apply() and __internals')
 
-assert.ok(moduleExports, 'the bundle must call window.__ModuleLoader__.load')
-assert.equal(moduleExports.__id, 'dsh-bot-team-tab')
-assert.deepEqual(moduleExports.inject, ['betterSidebar'])
-assert.equal(typeof moduleExports.apply, 'function')
+const { normalize, ROW_PREFIX, ROW_ORDER } = exported.__internals
+let checks = 0
+const ok = (name) => { checks += 1; console.log('  ok  ' + name) }
 
-const api = moduleExports.__internals
-const d = api.DICT.zh
-const now = 1700000000000
-const checks = []
+// ---- normalize -----------------------------------------------------------
 
-function check(name, fn) {
-  fn()
-  checks.push(name)
+const full = normalize({
+  mainBotId: 'b1',
+  bots: [
+    { id: 'b1', name: '玄机', sessionId: 's-1', state: 'idle' },
+    { id: 'b2', sessionId: 's-2' },
+    { id: 'b1', name: '重复的同一个' },
+    { name: '没有 id' },
+    null,
+    'garbage',
+  ],
+})
+assert.equal(full.bots.length, 3, 'duplicate ids collapse, junk entries drop')
+assert.equal(full.bots[0].name, '玄机')
+assert.equal(full.bots[0].sessionId, 's-1')
+assert.equal(full.bots[1].name, 'b2', 'a missing name falls back to the id')
+assert.equal(full.bots[1].sessionId, 's-2')
+assert.equal(full.bots[2].id, '没有 id', 'name doubles as the id when id is absent')
+assert.equal(full.mainBotId, 'b1')
+ok('normalize keeps id / name / sessionId, drops duplicates and junk')
+
+assert.equal(normalize(undefined).bots.length, 0)
+assert.equal(normalize({}).bots.length, 0)
+assert.equal(normalize({ bots: 'nope' }).bots.length, 0)
+ok('normalize survives a missing or malformed answer')
+
+assert.equal(normalize({ bots: [{ id: 'x', currentSessionId: 's-9' }] }).bots[0].sessionId, 's-9')
+ok('normalize accepts currentSessionId')
+
+// ---- apply ---------------------------------------------------------------
+
+const registered = []
+const ctx = {
+  slots: {
+    register: (options) => {
+      registered.push(options)
+      return () => {}
+    },
+    inject: (name, factory) => factory(),
+  },
+  effect: (factory) => {
+    const dispose = factory()
+    return typeof dispose === 'function' ? dispose : () => {}
+  },
+  get: () => null,
+  uiWorkspace: { openSession: () => {} },
 }
 
-const botA = { id: 'a', name: '甲', role: '结构', color: '#123456', sessionId: 's-a', lastAt: now - 5000 }
-const botB = { id: 'b', name: '乙', sessionId: 's-b' }
-const botC = { id: 'c', name: '丙', sessionId: 's-c', section: 'sec-1' }
-const work = (over) => Object.assign({ bots: {}, approvals: [], waiting: {}, turns: {} }, over || {})
-const view = (over) => Object.assign({ work: work(), justFinished: {} }, over || {})
-
-check('idle when DS Bot knows nothing about it', () => {
-  assert.equal(api.classify(botA, view(), now).state, 'idle')
+globalThis.fetch = async () => ({
+  ok: true,
+  json: async () => ({
+    bots: [
+      { id: 'b1', name: '玄机', sessionId: 's-1' },
+      { id: 'b2', name: '小助手', sessionId: 's-2' },
+      { id: 'b3', name: '没会话的' },
+    ],
+  }),
 })
 
-check('needs-you wins over a running turn (an approval sits open)', () => {
-  const v = view({ work: work({ bots: { a: { since: now - 1000 } }, approvals: [{ sessionId: 's-a' }] }) })
-  assert.equal(api.classify(botA, v, now).state, 'needsYou')
-})
+exported.apply(ctx)
+await new Promise((resolve) => setTimeout(resolve, 30))
 
-check('needs-you when the Bot holds its greeting for a model choice', () => {
-  const held = Object.assign({}, botA, { waiting: true })
-  assert.equal(api.classify(held, view(), now).state, 'needsYou')
-})
+const rows = registered.filter((o) => o.name === 'sidebar.panellist')
+const pages = registered.filter((o) => o.name === 'main')
 
-check('an approval pointing at another Bot is not mine', () => {
-  const v = view({ work: work({ approvals: [{ sessionId: 's-b' }] }) })
-  assert.equal(api.classify(botA, v, now).state, 'idle')
-})
+assert.deepEqual(rows.map((r) => r.id).sort(), [ROW_PREFIX + 'b1', ROW_PREFIX + 'b2', ROW_PREFIX + 'b3'])
+ok('one row per Bot, id prefixed with the Bot id')
 
-check('working carries the stage and the clock', () => {
-  const v = view({ work: work({ bots: { a: { since: now - 5000, tool: 'read', target: 'spec.md' } } }) })
-  const verdict = api.classify(botA, v, now)
-  assert.equal(verdict.state, 'working')
-  assert.equal(api.stateText(botA, verdict, now, d), 'read · spec.md · 5s')
-})
+assert.deepEqual(pages.map((p) => p.key).sort(), rows.map((r) => r.id).sort())
+ok('every row has a page with the same key')
 
-check('a running turn in a group with a hand-off waiting reads as waiting on a Bot', () => {
-  const v = view({
-    work: work({
-      bots: { a: { since: now - 1000, roomId: 'room-1' } },
-      waiting: { a: { waits: [{ name: '乙' }] } },
-    }),
-  })
-  assert.equal(api.classify(botA, v, now).state, 'waitingBot')
-})
+for (const row of rows) {
+  assert.equal(typeof row.label, 'function', 'the label is read live')
+  assert.equal(row.order, ROW_ORDER, 'rows sit together under 「新建会话」')
+  const botId = row.id.slice(ROW_PREFIX.length)
+  const expected = { b1: '玄机', b2: '小助手', b3: '没会话的' }[botId]
+  assert.equal(row.label(), expected)
+}
+ok('a row is labelled with the Bot name')
 
-check('waiting on another Bot outside a turn', () => {
-  const v = view({ work: work({ waiting: { a: { waits: [{ to: 'b', name: '乙' }] } } }) })
-  const verdict = api.classify(botA, v, now)
-  assert.equal(verdict.state, 'waitingBot')
-  assert.equal(api.stateText(botA, verdict, now, d), '等 乙')
-})
+assert.ok(!registered.some((o) => o.id === 'zdhcs:bot-settings'), 'no settings row')
+ok('no settings row')
 
-check('a blocking failure is read off the Bot itself, not page memory', () => {
-  const failed = Object.assign({}, botA, { blocked: { code: 'MISSING_CREDENTIAL', at: now - 1000 } })
-  const verdict = api.classify(failed, view(), now)
-  assert.equal(verdict.state, 'failed')
-  assert.match(api.stateText(failed, verdict, now, d), /MISSING_CREDENTIAL/)
-})
+assert.ok(registered.some((o) => o.name === 'sidebar.session.row.trailing'), 'the BOT badge is still registered')
+ok('the session badge is still registered')
 
-check('a failure that sat still for 3 minutes dims to idle but keeps its !', () => {
-  const failed = Object.assign({}, botA, { blocked: { code: 'MISSING_CREDENTIAL', at: now - api.STALE_FAIL_MS - 1000 } })
-  const verdict = api.classify(failed, view(), now)
-  assert.equal(verdict.state, 'idle')
-  assert.equal(verdict.blocked, true)
-  assert.equal(verdict.stale, true)
-})
-
-check('just finished lasts 7 seconds', () => {
-  const v = view({ justFinished: { a: now - 1000 } })
-  assert.equal(api.classify(botA, v, now).state, 'justFinished')
-  const old = view({ justFinished: { a: now - api.JUST_FINISHED_MS - 1 } })
-  assert.equal(api.classify(botA, old, now).state, 'idle')
-})
-
-check('sections group by DS Bot order, and nothing ungrouped is last', () => {
-  const sections = [{ id: 'sec-1', name: '一队', order: 2 }, { id: 'sec-2', name: '二队', order: 1 }]
-  const groups = api.buildGroups([botA, Object.assign({}, botB, { section: 'sec-2' }), botC], sections, d)
-  assert.deepEqual(groups.map((g) => g.id), ['sec-2', 'sec-1', '__ungrouped'])
-  assert.deepEqual(groups[2].bots.map((b) => b.id), ['a'])
-  assert.equal(groups[2].name, d.ungrouped)
-})
-
-check('an unknown section id falls into the ungrouped bucket instead of vanishing', () => {
-  const groups = api.buildGroups([Object.assign({}, botA, { section: 'gone' })], [{ id: 'sec-1', name: '一队', order: 1 }], d)
-  assert.deepEqual(groups.map((g) => g.id), ['__ungrouped'])
-})
-
-check('a section given as an object still groups', () => {
-  const groups = api.buildGroups([Object.assign({}, botA, { section: { id: 'sec-1' } })], [{ id: 'sec-1', name: '一队' }], d)
-  assert.deepEqual(groups.map((g) => g.id), ['sec-1'])
-})
-
-check('colors: hex passes through, anything else hashes stably', () => {
-  assert.equal(api.colorOf({ id: 'x', color: '#abcdef' }), '#abcdef')
-  assert.equal(api.colorOf({ id: 'x', color: ['#111111', '#222222'] }), '#111111')
-  const first = api.colorOf({ id: 'bot-42' })
-  assert.match(first, /^#[0-9A-F]{6}$/i)
-  assert.equal(api.colorOf({ id: 'bot-42' }), first)
-})
-
-check('elapsed and ago read like a person wrote them', () => {
-  assert.equal(api.elapsedText(5000, d), '5s')
-  assert.equal(api.elapsedText(65000, d), '1m 5s')
-  assert.equal(api.elapsedText(3725000, d), '1h 2m')
-  assert.equal(api.agoText(now - 2000, now, d), d.justNow)
-  assert.equal(api.agoText(now - 5 * 60000, now, d), '5' + d.minute + d.ago)
-})
-
-check('a missing session id is surfaced, never thrown', () => {
-  assert.deepEqual(api.chatSessions({}), [])
-  assert.deepEqual(api.chatSessions({ sessionId: 's', parts: ['p1', 'p2'] }), ['s', 'p1', 'p2'])
-})
-
-check('the poll constants obey the hard floor', () => {
-  assert.ok(api.POLL_MS >= 3000, 'never poll faster than 3s')
-  assert.deepEqual(api.BACKOFF_MS, [3000, 6000, 12000, 24000, 30000])
-  assert.equal(api.TAB_ID, 'zdhcs:bot-team')
-})
-
-console.log('ok ' + checks.length + ' checks')
-for (const name of checks) console.log('  - ' + name)
+console.log('\n' + checks + ' checks passed')
+// apply() starts a 5 s poll; without this the process would never settle.
+process.exit(0)
