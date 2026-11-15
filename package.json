@@ -1,6 +1,6 @@
 {
   "name": "dsh-bot-team-tab",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "DS Bot 队友的左侧栏入口：每个 Bot 在 DSH 左侧栏占一行，行名即 Bot 名称，行图标按该 Bot 的头像形状以单色线性字形绘制；点击即打开该 Bot 的会话，并在会话列表为 Bot 会话标注 BOT 标记。",
   "type": "module",
   "license": "MIT",
@@ -38,5 +38,9 @@
       "platform": "web",
       "inject": []
     }
+  },
+  "scripts": {
+    "test": "node --test --test-isolation=none --test-force-exit test/normalize.test.mjs test/unwrap.test.mjs test/glyph.test.mjs test/registration.test.mjs test/navigation.test.mjs",
+    "check": "node --check lib/client.js && npm test && node scripts/check-docs.mjs"
   }
 }

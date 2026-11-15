@@ -23,7 +23,7 @@ DS Bot 队友的左侧栏入口插件。它为每个 Bot 在 DSH 左侧栏注册
 从 GitHub 安装（推荐，版本号与 tag 一致）：
 
 ```bash
-dsh plugin --profile <profile 名> add github:mufeng-git/dsh-bot-team-tab#v0.4.1
+dsh plugin --profile <profile 名> add github:mufeng-git/dsh-bot-team-tab#v0.4.2
 ```
 
 本地开发时改为文件源，二者互斥：
@@ -67,11 +67,16 @@ dsh plugin --profile <profile 名> add file:/绝对路径/plugins/dsh-bot-team-t
 ## 开发与自测
 
 ```bash
-node --check lib/client.js
-node scripts/selftest.mjs
+npm run check
 ```
 
-自测以桩件模拟宿主 `window.__ModuleLoader__` 与 `ctx.inject`，覆盖响应信封解析、`avatar.shape` 归一化、七种字形与回退、行与页的注册、行名取值、行图标取值、会话行标记，以及「选中一行后取消面板并打开对应会话」的点击链路，共 16 项。
+三关：`node --check lib/client.js`（语法）、`node:test`（5 个测试文件、18 个用例、61 条断言）、`scripts/check-docs.mjs`（文档死链）。跑单个文件：
+
+```bash
+node --test --test-isolation=none --test-force-exit test/navigation.test.mjs
+```
+
+`test/harness.mjs` 以桩件模拟宿主：`window.__ModuleLoader__` 装载 bundle、`require('react')` 返回最小元素桩、`ctx.inject` 返回注入作用域、`fetch` 记录发往 `api/bot` 与日志端点的请求。覆盖范围：响应信封、名册归一化（去重 / 缺名 / `currentSessionId`）、`avatar.shape` 归一化与七种字形回退、行与页的注册顺序、行注销与重注册、行名实时取值、会话行尾 BOT 胶囊，以及点击链路的四条分支（正常、无会话、无服务、`openSession` 抛错）。
 
 ## 兼容性
 
@@ -80,8 +85,11 @@ node scripts/selftest.mjs
 
 ## 版本
 
+完整变更见 [CHANGELOG.md](CHANGELOG.md)，每版的产物校验值与回退方式见 [docs/releases/](docs/releases/)。
+
 | 版本 | 变更 |
 | --- | --- |
+| 0.4.2 | 工程规范版：自测迁移到 node:test（18 用例 / 61 断言）、新增 `npm run check` 与文档死链检查、新增 DSH API 核实记录与发布文档；UI 行为无变化。 |
 | 0.4.1 | 修正版本号常量（0.4.0 代码已带字形，但 `VERSION` 仍报 0.3.4，日志无法区分版本）。 |
 | 0.4.0 | 行图标按 Bot 的 `avatar.shape` 重绘为单色线性字形（7 种 + 回退），形状变化后自动重注册。 |
 | 0.3.4 | 服务改为经 `ctx.inject` 取得并支持重新绑定，修复点击后提示「连不上 DS Bot」；补充服务探测日志；重写插件说明。 |
