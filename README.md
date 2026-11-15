@@ -1,65 +1,91 @@
 # dsh-bot-team-tab
 
-左侧栏里**一个 Bot 一行，行名就是 Bot 的名字**（「玄机」「小助手」…）：点一下就进那个 Bot 的会话，没有中间页、没有设置行。普通会话列表里，Bot 的会话尾巴上多一个小 **BOT** 胶囊。
+DS Bot 队友的左侧栏入口插件。它为每个 Bot 在 DSH 左侧栏注册一行，行名即该 Bot 的名称；点击该行即打开该 Bot 的会话，不经过中间页面，也不提供额外的设置入口。
 
-配合 [ds-bot](https://www.npmjs.com/package/ds-bot) 使用。纯客户端插件：没有宿主工具、没有 HTTP 路由、不写 DS Bot 的任何数据、不依赖第三方侧栏插件。
+## 功能范围
 
-> 名字里的 tab 是初版留下的（那时它挂在 better-sidebar 的右栏）。现在长在左侧栏，目录名保留只为不打断已装的那条依赖。
-
-## 它长在哪
-
-DSH 左侧栏的官方插槽只有 `sidebar.panellist`：一行图标 + 一行文字，点击 = 选中同名 key 的 `main` 面板。本插件就注册这两处：
-
-- `sidebar.panellist`，每个 Bot 一行，`order: -1`（紧贴「新建会话」），`label()` 返回该 Bot 的当前名字，改名会跟着变。
-- `main`（keyed）：行 id 与面板 key 相同，点行即有页面可选中。
-
-Bot 行点开的面板 `JumpPanel` 挂载瞬间做一件事：`uiWorkspace.openSession(bot.sessionId)` → `layout.selectPanel(null)` 退回原界面。所以观感是「点一下直接进那个 Bot 的会话」，没有中间页停留。Bot 还没有会话时显示一行提示，不会静默失败。
-
-## 数据从哪来
-
-每 5 秒 POST 一次同源 `api/bot`（body `{endpoint:'state'}`），只取 `bots[]` 的 `id / name / sessionId / state`。请求失败按 5s → 10s → 20s → 30s 退避，恢复后回 5s。名字优先 `name`，缺失用 id 兜底。
-
-## 自测
-
-```
-node scripts/selftest.mjs     # 11 checks: normalize + unwrap + 注册了哪些行
-node --check lib/client.js
-```
-
-改了 lib/client.js 之后**必须彻底退出 DSH 再启动**，客户端 bundle 只在 App 启动时装载，刷新页面不生效。
-
-## 点击没反应时看日志
-
-插件把每一步写进宿主日志，点一下行就有据可查，不用靠猜：
-
-```
-~/.dsh/logs/dsh-bot-team-tab.log      # 覆盖路径：环境变量 DSH_BOT_TEAM_LOG
-```
-
-浏览器侧 POST 同源 `api/bot-team/log`（body `{t, v, event, data}`），宿主半边（`lib/index.js`）用 `ctx.connection.fetch.register` 挂这一条路由，把每个事件追加成一行 JSON。一次点击按顺序应该看到：
-
-| event | 含义 |
+| 能力 | 说明 |
 | --- | --- |
-| `apply:start` / `apply:slots` | bundle 装载，以及宿主给没给 slots / uiWorkspace / layout |
-| `panel:watch:ready` | 已订阅 `layout.panelInfo`，点行时靠它触发跳转 |
-| `poll:ok` | 拿到 bot 名单（只在名单变化时写一行） |
-| `row:register` / `main:register` | 行与它对应的面板页各注册一次 |
-| `panel:change` | 侧栏真的选中了某个面板 id（`zdhcs:bot:<botId>`） |
-| `jump:start` / `jump:opened` | 开始跳转，以及 `uiWorkspace.openSession` 是否返回 |
-| `jump:openSession:error` | 宿主拒绝打开这个会话时的错误原文 |
+| 一行一个 Bot | 左侧栏按 Bot 逐一列出，「新建会话」之下同组排列；Bot 改名后行名随之更新。 |
+| 点击即进入会话 | 点击任意一行，主区域直接切换到该 Bot 的 DSH 会话；面板不驻留、不显示落地页。 |
+| 会话列表标记 | 属于 Bot 的会话在其行尾显示 `BOT` 胶囊，便于与普通会话区分。 |
+| 自动同步 | 每 5 秒从 DS Bot 读取一次 Bot 清单，新增的 Bot 自动出现，移除的自动消失；连接失败按 5/10/20/30 秒退避重试。 |
 
-缺哪一行，就说明断在哪一步：没有 `panel:change` 是行没选中面板（`main` 没注册上），有 `panel:change` 没有 `jump:start` 是订阅没装成，有 `jump:openSession:error` 则是宿主不认这个会话 id。
+## 环境要求
+
+- DSH 桌面版或 Web 版（`dsh.client.platform = web` 的客户端插件形态）。
+- 已安装 DS Bot 插件，其宿主路由 `/api/bot` 可用；插件通过该路由的 `state` 端点读取 Bot 清单。
+- 无需修改 DSH 本体，也不依赖其它侧栏类插件。
 
 ## 安装
 
-**从 GitHub 装（换机器、重装 DSH 后恢复）**：仓库 `mufeng-git/dsh-bot-team-tab` 已公开，按 tag 发版。先把包名加进 profile 的 `dsh.profile.bundles`（`dsh-bot-team-tab`），再
+从 GitHub 安装（推荐，版本号与 tag 一致）：
 
+```bash
+dsh plugin --profile <profile 名> add github:mufeng-git/dsh-bot-team-tab#v0.3.4
 ```
-dsh plugin --profile desktop add github:mufeng-git/dsh-bot-team-tab#v0.3.3
+
+本地开发时改为文件源，二者互斥：
+
+```bash
+dsh plugin --profile <profile 名> add file:/绝对路径/plugins/dsh-bot-team-tab
 ```
 
-装完**彻底退出 DSH 再启动**。私有库用 `github:` 短写会 404（走 codeload 匿名下载），需要 `git+ssh://git@github.com/mufeng-git/dsh-bot-team-tab.git#v0.3.1` 或转公开。
+客户端 bundle 仅在 DSH 启动时装载，安装或更新后须彻底退出 DSH 再启动，刷新页面不会生效。
 
-**本机开发用 `file:`**：`profiles/desktop/package.json` 里写 `"dsh-bot-team-tab": "file:C:/Users/Administrator/.dsh/bot/workspace/plugins/dsh-bot-team-tab"`，改完源码跑 `scripts/install-to-profile.cmd` 同步到 `profiles/desktop/node_modules/dsh-bot-team-tab/`，再重启。这条路上改一行就能测，不用每次 push。
+## 使用
 
-> 两种写法互斥：`github:` 装的是 tag 快照，本地改了不会生效；反复改插件时用 `file:`。
+1. 启动 DSH，确认左侧栏出现以 Bot 名称命名的行（例如「玄机」「安澜」）。
+2. 点击任意一行，主区域即显示该 Bot 的会话。
+3. 若该 Bot 尚无会话，行仍会显示，点击后提示「这个 Bot 还没有会话」。
+
+## 实现说明
+
+- **注册位置**：`sidebar.panellist`（左侧栏列表行）、`main`（行被选中时主区域的面板，键与行 id 一致，先行后页注册）、`sidebar.session.row.trailing`（会话行尾标记）。
+- **点击链路**：行的选中由宿主完成，插件订阅 `layout.panelInfo`；`activePanelId` 变为本插件的面板 id 时，取消面板选中并调用 `uiWorkspace.openSession(sessionId)`。跳转挂在状态订阅上而非组件挂载上，避免出现「页面渲染了但跳转没执行」的时序缺口。
+- **服务获取**：`uiWorkspace` 与 `layout` 不写进模块级 `inject` 声明，而由 `ctx.inject([...], scope => ...)` 取得；该 scope 晚于 `apply` 到达或被替换时会重新绑定，面板订阅随之重挂。
+- **数据来源**：`POST api/bot`，请求体 `{"endpoint":"state","payload":{}}`，响应为 `{ok:true,value}` 信封；`bots[]` 的 `id`、`name`、`sessionId` 为唯一依赖字段。
+
+## 日志与排障
+
+客户端与宿主写入同一条日志：`~/.dsh/logs/dsh-bot-team-tab.log`（可用环境变量 `DSH_BOT_TEAM_LOG` 指向其它路径），每行一条 JSON，包含 `v`（插件版本）与 `event` 字段。
+
+| 事件 | 含义 |
+| --- | --- |
+| `apply:start` / `apply:done` / `apply:error` | 插件装载与失败原因。 |
+| `services:ready` / `services:gone` / `services:inject:error` | 服务作用域的取得、替换与失败；`probe` 字段记录 `ctx.get` 与直接属性两种取法的结果。 |
+| `panel:watch:ready` / `panel:watch:unavailable` | 面板选中订阅是否装上；后者表示 `layout.panelInfo` 不可用。 |
+| `panel:change` | 宿主面板选中发生变化。 |
+| `jump:start` / `jump:opened` / `jump:noWorkspace` / `jump:openSession:error` | 一次点击的完整链路与失败原因。 |
+| `poll:ok` / `poll:error` | Bot 清单拉取结果。 |
+| `row:register` / `row:drop` | 行的注册与移除。 |
+
+点击无反应时，先确认日志中的 `v` 与已安装版本一致，再看 `jump:*` 与 `services:*` 两条链路。
+
+## 开发与自测
+
+```bash
+node --check lib/client.js
+node scripts/selftest.mjs
+```
+
+自测以桩件模拟宿主 `window.__ModuleLoader__` 与 `ctx.inject`，覆盖响应信封解析、行与页的注册、行名取值、会话行标记，以及「选中一行后取消面板并打开对应会话」的点击链路，共 13 项。
+
+## 兼容性
+
+- 插件面向 DSH 0.2 起的客户端插件接口（`dsh.manifestVersion = 1`）。
+- 宿主若不提供 `main` 面板插槽，行仍可注册，但点击不会跳转；日志中会出现 `panel:watch:unavailable`。
+
+## 版本
+
+| 版本 | 变更 |
+| --- | --- |
+| 0.3.4 | 服务改为经 `ctx.inject` 取得并支持重新绑定，修复点击后提示「连不上 DS Bot」；补充服务探测日志；重写插件说明。 |
+| 0.3.3 | 增加宿主日志端点与客户端埋点；跳转改挂面板选中订阅。 |
+| 0.3.2 | 修正 `/api/bot` 的信封解析，行得以显示。 |
+| 0.3.1 | 撤销设置行，一行一个 Bot，行名即 Bot 名称。 |
+| 0.3.0 | 由单一面板改为一行一个 Bot。 |
+
+## 许可
+
+MIT。

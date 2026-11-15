@@ -91,6 +91,25 @@ ok('unwrap turns { ok: false, error } into an Error')
 // ---- apply ---------------------------------------------------------------
 
 const registered = []
+// The shell hands services to a plugin through ctx.inject() only; this stub keeps
+// that contract, so a regression back to a bare ctx.get() fails here, not in the GUI.
+const opened = []
+const selected = []
+const panelListeners = new Set()
+let activePanelId = ''
+const panelInfo = {
+  getSnapshot: () => ({ activePanelId }),
+  subscribe: (listener) => {
+    panelListeners.add(listener)
+    return () => panelListeners.delete(listener)
+  },
+}
+const injectedScope = {
+  uiWorkspace: { openSession: (sessionId) => { opened.push(sessionId) } },
+  layout: { selectPanel: (id) => { selected.push(id) }, panelInfo },
+  get(name) { return this[name] ?? null },
+}
+
 const ctx = {
   slots: {
     register: (options) => {
@@ -104,7 +123,10 @@ const ctx = {
     return typeof dispose === 'function' ? dispose : () => {}
   },
   get: () => null,
-  uiWorkspace: { openSession: () => {} },
+  inject: (names, callback) => {
+    const cleanup = callback(injectedScope)
+    return { dispose: () => { if (typeof cleanup === 'function') cleanup() } }
+  },
 }
 
 globalThis.fetch = async () => ({
@@ -147,6 +169,17 @@ ok('no settings row')
 
 assert.ok(registered.some((o) => o.name === 'sidebar.session.row.trailing'), 'the BOT badge is still registered')
 ok('the session badge is still registered')
+
+// ---- click path ----------------------------------------------------------
+
+activePanelId = ROW_PREFIX + 'b1'
+panelListeners.forEach((listener) => listener())
+await new Promise((resolve) => setTimeout(resolve, 20))
+
+assert.deepEqual(selected, [null], 'the selected row leaves the panel first')
+ok('a selected Bot row leaves the panel first')
+assert.deepEqual(opened, ['s-1'], 'the row opens that Bot session')
+ok('a selected Bot row opens the Bot session through the injected scope')
 
 console.log('\n' + checks + ' checks passed')
 // apply() starts a 5 s poll; without this the process would never settle.
