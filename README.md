@@ -22,18 +22,40 @@ Bot 行点开的面板 `JumpPanel` 挂载瞬间做一件事：`uiWorkspace.openS
 ## 自测
 
 ```
-node scripts/selftest.mjs     # 8 checks: normalize + 注册了哪些行
+node scripts/selftest.mjs     # 11 checks: normalize + unwrap + 注册了哪些行
 node --check lib/client.js
 ```
 
 改了 lib/client.js 之后**必须彻底退出 DSH 再启动**，客户端 bundle 只在 App 启动时装载，刷新页面不生效。
+
+## 点击没反应时看日志
+
+插件把每一步写进宿主日志，点一下行就有据可查，不用靠猜：
+
+```
+~/.dsh/logs/dsh-bot-team-tab.log      # 覆盖路径：环境变量 DSH_BOT_TEAM_LOG
+```
+
+浏览器侧 POST 同源 `api/bot-team/log`（body `{t, v, event, data}`），宿主半边（`lib/index.js`）用 `ctx.connection.fetch.register` 挂这一条路由，把每个事件追加成一行 JSON。一次点击按顺序应该看到：
+
+| event | 含义 |
+| --- | --- |
+| `apply:start` / `apply:slots` | bundle 装载，以及宿主给没给 slots / uiWorkspace / layout |
+| `panel:watch:ready` | 已订阅 `layout.panelInfo`，点行时靠它触发跳转 |
+| `poll:ok` | 拿到 bot 名单（只在名单变化时写一行） |
+| `row:register` / `main:register` | 行与它对应的面板页各注册一次 |
+| `panel:change` | 侧栏真的选中了某个面板 id（`zdhcs:bot:<botId>`） |
+| `jump:start` / `jump:opened` | 开始跳转，以及 `uiWorkspace.openSession` 是否返回 |
+| `jump:openSession:error` | 宿主拒绝打开这个会话时的错误原文 |
+
+缺哪一行，就说明断在哪一步：没有 `panel:change` 是行没选中面板（`main` 没注册上），有 `panel:change` 没有 `jump:start` 是订阅没装成，有 `jump:openSession:error` 则是宿主不认这个会话 id。
 
 ## 安装
 
 **从 GitHub 装（换机器、重装 DSH 后恢复）**：仓库 `mufeng-git/dsh-bot-team-tab` 已公开，按 tag 发版。先把包名加进 profile 的 `dsh.profile.bundles`（`dsh-bot-team-tab`），再
 
 ```
-dsh plugin --profile desktop add github:mufeng-git/dsh-bot-team-tab#v0.3.1
+dsh plugin --profile desktop add github:mufeng-git/dsh-bot-team-tab#v0.3.3
 ```
 
 装完**彻底退出 DSH 再启动**。私有库用 `github:` 短写会 404（走 codeload 匿名下载），需要 `git+ssh://git@github.com/mufeng-git/dsh-bot-team-tab.git#v0.3.1` 或转公开。

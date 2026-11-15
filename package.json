@@ -1,6 +1,6 @@
 {
   "name": "dsh-bot-team-tab",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "One left-rail row per DS Bot teammate, labelled with the Bot's own name: click it and the workspace opens that Bot's session. Also adds a BOT chip on Bot sessions in the session list.",
   "type": "module",
   "license": "MIT",
