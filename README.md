@@ -23,7 +23,7 @@ DS Bot 队友的左侧栏入口插件。它为每个 Bot 在 DSH 左侧栏注册
 从 GitHub 安装（推荐，版本号与 tag 一致）：
 
 ```bash
-dsh plugin --profile <profile 名> add github:mufeng-git/dsh-bot-team-tab#v0.4.0
+dsh plugin --profile <profile 名> add github:mufeng-git/dsh-bot-team-tab#v0.4.1
 ```
 
 本地开发时改为文件源，二者互斥：
@@ -82,6 +82,7 @@ node scripts/selftest.mjs
 
 | 版本 | 变更 |
 | --- | --- |
+| 0.4.1 | 修正版本号常量（0.4.0 代码已带字形，但 `VERSION` 仍报 0.3.4，日志无法区分版本）。 |
 | 0.4.0 | 行图标按 Bot 的 `avatar.shape` 重绘为单色线性字形（7 种 + 回退），形状变化后自动重注册。 |
 | 0.3.4 | 服务改为经 `ctx.inject` 取得并支持重新绑定，修复点击后提示「连不上 DS Bot」；补充服务探测日志；重写插件说明。 |
 | 0.3.3 | 增加宿主日志端点与客户端埋点；跳转改挂面板选中订阅。 |
