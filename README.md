@@ -8,6 +8,7 @@ DS Bot 队友的左侧栏入口插件。它为每个 Bot 在 DSH 左侧栏注册
 | --- | --- |
 | 一行一个 Bot | 左侧栏按 Bot 逐一列出，「新建会话」之下同组排列；Bot 改名后行名随之更新。 |
 | 点击即进入会话 | 点击任意一行，主区域直接切换到该 Bot 的 DSH 会话；面板不驻留、不显示落地页。 |
+| 行图标 | 行图标不是统一的机器人剪影，而是按该 Bot 的 `avatar.shape` 画的单色线性字形（鲸、星、月、浪、圆角方、牛、六边）；未知形状回退为机器人剪影。在 DS Bot 里更换头像形状后，下一次同步（≤5 秒）左栏图标随之更新。 |
 | 会话列表标记 | 属于 Bot 的会话在其行尾显示 `BOT` 胶囊，便于与普通会话区分。 |
 | 自动同步 | 每 5 秒从 DS Bot 读取一次 Bot 清单，新增的 Bot 自动出现，移除的自动消失；连接失败按 5/10/20/30 秒退避重试。 |
 
@@ -22,7 +23,7 @@ DS Bot 队友的左侧栏入口插件。它为每个 Bot 在 DSH 左侧栏注册
 从 GitHub 安装（推荐，版本号与 tag 一致）：
 
 ```bash
-dsh plugin --profile <profile 名> add github:mufeng-git/dsh-bot-team-tab#v0.3.4
+dsh plugin --profile <profile 名> add github:mufeng-git/dsh-bot-team-tab#v0.4.0
 ```
 
 本地开发时改为文件源，二者互斥：
@@ -44,7 +45,8 @@ dsh plugin --profile <profile 名> add file:/绝对路径/plugins/dsh-bot-team-t
 - **注册位置**：`sidebar.panellist`（左侧栏列表行）、`main`（行被选中时主区域的面板，键与行 id 一致，先行后页注册）、`sidebar.session.row.trailing`（会话行尾标记）。
 - **点击链路**：行的选中由宿主完成，插件订阅 `layout.panelInfo`；`activePanelId` 变为本插件的面板 id 时，取消面板选中并调用 `uiWorkspace.openSession(sessionId)`。跳转挂在状态订阅上而非组件挂载上，避免出现「页面渲染了但跳转没执行」的时序缺口。
 - **服务获取**：`uiWorkspace` 与 `layout` 不写进模块级 `inject` 声明，而由 `ctx.inject([...], scope => ...)` 取得；该 scope 晚于 `apply` 到达或被替换时会重新绑定，面板订阅随之重挂。
-- **数据来源**：`POST api/bot`，请求体 `{"endpoint":"state","payload":{}}`，响应为 `{ok:true,value}` 信封；`bots[]` 的 `id`、`name`、`sessionId` 为唯一依赖字段。
+- **数据来源**：`POST api/bot`，请求体 `{"endpoint":"state","payload":{}}`，响应为 `{ok:true,value}` 信封；依赖 `bots[]` 的 `id`、`name`、`sessionId` 与 `avatar.shape` 四个字段。
+- **行图标**：注册 `sidebar.panellist` 行时第二参（图标组件）按 Bot 闭包，渲染时从 store 取当前 `avatar.shape`，交给 `glyphIcon()` 画 16×16 的描边字形（`stroke: currentColor`、1.25px、圆角端点，不填充）；未知或缺失形状回退 `BotIcon`。形状变化时该行注销后重注册，不依赖宿主重新渲染。
 
 ## 日志与排障
 
@@ -58,7 +60,7 @@ dsh plugin --profile <profile 名> add file:/绝对路径/plugins/dsh-bot-team-t
 | `panel:change` | 宿主面板选中发生变化。 |
 | `jump:start` / `jump:opened` / `jump:noWorkspace` / `jump:openSession:error` | 一次点击的完整链路与失败原因。 |
 | `poll:ok` / `poll:error` | Bot 清单拉取结果。 |
-| `row:register` / `row:drop` | 行的注册与移除。 |
+| `row:register` / `row:drop` | 行的注册与移除；`row:register` 带 `shape` 字段，可确认图标取到的形状。 |
 
 点击无反应时，先确认日志中的 `v` 与已安装版本一致，再看 `jump:*` 与 `services:*` 两条链路。
 
@@ -69,7 +71,7 @@ node --check lib/client.js
 node scripts/selftest.mjs
 ```
 
-自测以桩件模拟宿主 `window.__ModuleLoader__` 与 `ctx.inject`，覆盖响应信封解析、行与页的注册、行名取值、会话行标记，以及「选中一行后取消面板并打开对应会话」的点击链路，共 13 项。
+自测以桩件模拟宿主 `window.__ModuleLoader__` 与 `ctx.inject`，覆盖响应信封解析、`avatar.shape` 归一化、七种字形与回退、行与页的注册、行名取值、行图标取值、会话行标记，以及「选中一行后取消面板并打开对应会话」的点击链路，共 16 项。
 
 ## 兼容性
 
@@ -80,6 +82,7 @@ node scripts/selftest.mjs
 
 | 版本 | 变更 |
 | --- | --- |
+| 0.4.0 | 行图标按 Bot 的 `avatar.shape` 重绘为单色线性字形（7 种 + 回退），形状变化后自动重注册。 |
 | 0.3.4 | 服务改为经 `ctx.inject` 取得并支持重新绑定，修复点击后提示「连不上 DS Bot」；补充服务探测日志；重写插件说明。 |
 | 0.3.3 | 增加宿主日志端点与客户端埋点；跳转改挂面板选中订阅。 |
 | 0.3.2 | 修正 `/api/bot` 的信封解析，行得以显示。 |

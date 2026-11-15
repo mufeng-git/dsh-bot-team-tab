@@ -40,7 +40,7 @@ const source = await readFile(clientPath, 'utf8')
 new Function('window', 'document', source)(globalThis.window, undefined)
 assert.ok(exported && exported.apply && exported.__internals, 'the bundle must export apply() and __internals')
 
-const { normalize, unwrap, ROW_PREFIX, ROW_ORDER } = exported.__internals
+const { normalize, unwrap, ROW_PREFIX, ROW_ORDER, SHAPE_GLYPHS, glyphIcon, BotIcon } = exported.__internals
 let checks = 0
 const ok = (name) => { checks += 1; console.log('  ok  ' + name) }
 
@@ -73,6 +73,29 @@ ok('normalize survives a missing or malformed answer')
 
 assert.equal(normalize({ bots: [{ id: 'x', currentSessionId: 's-9' }] }).bots[0].sessionId, 's-9')
 ok('normalize accepts currentSessionId')
+
+// ---- icon shapes ---------------------------------------------------------
+
+assert.equal(normalize({ bots: [{ id: 'b1', avatar: { shape: 'star' } }] }).bots[0].shape, 'star')
+assert.equal(normalize({ bots: [{ id: 'b1' }] }).bots[0].shape, '')
+assert.equal(normalize({ bots: [{ id: 'b1', avatar: 'nope' }] }).bots[0].shape, '')
+assert.equal(normalize({ bots: [{ id: 'b1', avatar: { shape: 42 } }] }).bots[0].shape, '')
+ok('normalize keeps avatar.shape and tolerates a missing or malformed avatar')
+
+const SHAPES = ['whale', 'star', 'moon', 'wave', 'squircle', 'zed', 'hex']
+const drawn = SHAPES.map((shape) => glyphIcon(shape, { size: 16, active: false }))
+drawn.forEach((el, index) => {
+  assert.equal(el.type, 'svg', SHAPES[index] + ' is drawn as a line glyph')
+  assert.equal(el.props.width, 16)
+  assert.equal(el.props.fill, 'none', 'glyphs are stroke only')
+  assert.ok(el.children.flat().length >= 1, SHAPES[index] + ' carries geometry')
+})
+assert.notDeepEqual(drawn[1].children, drawn[6].children, 'different shapes draw different geometry')
+assert.equal(SHAPES.length, Object.keys(SHAPE_GLYPHS).length, 'the table covers exactly the seven shapes')
+assert.deepEqual(glyphIcon('not-a-real-shape', { size: 18 }), BotIcon({ size: 18 }), 'an unknown shape falls back to the robot')
+assert.deepEqual(glyphIcon('', undefined), BotIcon(undefined), 'a missing shape falls back to the robot')
+assert.notDeepEqual(glyphIcon('star', { size: 16 }), BotIcon({ size: 16 }), 'a known shape does not fall back')
+ok('seven character shapes draw distinct line glyphs, unknown falls back to the robot')
 
 // ---- unwrap --------------------------------------------------------------
 
@@ -112,8 +135,8 @@ const injectedScope = {
 
 const ctx = {
   slots: {
-    register: (options) => {
-      registered.push(options)
+    register: (options, component) => {
+      registered.push(Object.assign({}, options, { component: component }))
       return () => {}
     },
     inject: (name, factory) => factory(),
@@ -135,8 +158,8 @@ globalThis.fetch = async () => ({
     ok: true,
     value: {
       bots: [
-        { id: 'b1', name: '玄机', sessionId: 's-1' },
-        { id: 'b2', name: '小助手', sessionId: 's-2' },
+        { id: 'b1', name: '玄机', sessionId: 's-1', avatar: { shape: 'star', color: 'blue' } },
+        { id: 'b2', name: '小助手', sessionId: 's-2', avatar: { shape: 'hex' } },
         { id: 'b3', name: '没会话的' },
       ],
     },
@@ -163,6 +186,13 @@ for (const row of rows) {
   assert.equal(row.label(), expected)
 }
 ok('a row is labelled with the Bot name')
+
+const iconOf = (botId) => rows.find((r) => r.id === ROW_PREFIX + botId).component({ size: 16, active: false })
+assert.equal(iconOf('b1').type, 'svg', 'a Bot with a shape draws a glyph')
+assert.equal(iconOf('b2').type, 'svg', 'each Bot draws its own glyph')
+assert.notDeepEqual(iconOf('b1').children, iconOf('b2').children, 'two Bots with different shapes differ on the rail')
+assert.deepEqual(iconOf('b3'), BotIcon({ size: 16 }), 'a Bot without a shape falls back to the robot')
+ok('a row icon is drawn from that Bot avatar shape')
 
 assert.ok(!registered.some((o) => o.id === 'zdhcs:bot-settings'), 'no settings row')
 ok('no settings row')

@@ -1,7 +1,7 @@
 {
   "name": "dsh-bot-team-tab",
-  "version": "0.3.4",
-  "description": "DS Bot 队友的左侧栏入口：每个 Bot 在 DSH 左侧栏占一行，行名即 Bot 名称，点击即打开该 Bot 的会话，并在会话列表为 Bot 会话标注 BOT 标记。",
+  "version": "0.4.0",
+  "description": "DS Bot 队友的左侧栏入口：每个 Bot 在 DSH 左侧栏占一行，行名即 Bot 名称，行图标按该 Bot 的头像形状以单色线性字形绘制；点击即打开该 Bot 的会话，并在会话列表为 Bot 会话标注 BOT 标记。",
   "type": "module",
   "license": "MIT",
   "private": true,
