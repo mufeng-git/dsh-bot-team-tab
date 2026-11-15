@@ -40,7 +40,7 @@ const source = await readFile(clientPath, 'utf8')
 new Function('window', 'document', source)(globalThis.window, undefined)
 assert.ok(exported && exported.apply && exported.__internals, 'the bundle must export apply() and __internals')
 
-const { normalize, ROW_PREFIX, ROW_ORDER } = exported.__internals
+const { normalize, unwrap, ROW_PREFIX, ROW_ORDER } = exported.__internals
 let checks = 0
 const ok = (name) => { checks += 1; console.log('  ok  ' + name) }
 
@@ -74,6 +74,20 @@ ok('normalize survives a missing or malformed answer')
 assert.equal(normalize({ bots: [{ id: 'x', currentSessionId: 's-9' }] }).bots[0].sessionId, 's-9')
 ok('normalize accepts currentSessionId')
 
+// ---- unwrap --------------------------------------------------------------
+
+const wrapped = unwrap({ ok: true, value: { bots: [{ id: 'b1', name: '玄机' }] } })
+assert.equal(wrapped.bots.length, 1, 'the envelope is unwrapped to its value')
+ok('unwrap takes value out of { ok: true, value }')
+
+assert.equal(unwrap({ bots: [] }).bots.length, 0, 'a bare payload still works')
+ok('unwrap tolerates a payload with no envelope')
+
+let threw = ''
+try { unwrap({ ok: false, error: { code: 'bot/internal', message: 'boom' } }) } catch (err) { threw = String(err.message) }
+assert.equal(threw, 'boom', 'a refusal becomes an Error')
+ok('unwrap turns { ok: false, error } into an Error')
+
 // ---- apply ---------------------------------------------------------------
 
 const registered = []
@@ -96,11 +110,14 @@ const ctx = {
 globalThis.fetch = async () => ({
   ok: true,
   json: async () => ({
-    bots: [
-      { id: 'b1', name: '玄机', sessionId: 's-1' },
-      { id: 'b2', name: '小助手', sessionId: 's-2' },
-      { id: 'b3', name: '没会话的' },
-    ],
+    ok: true,
+    value: {
+      bots: [
+        { id: 'b1', name: '玄机', sessionId: 's-1' },
+        { id: 'b2', name: '小助手', sessionId: 's-2' },
+        { id: 'b3', name: '没会话的' },
+      ],
+    },
   }),
 })
 
