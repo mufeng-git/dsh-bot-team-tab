@@ -23,7 +23,7 @@ DS Bot 队友的左侧栏入口插件。它为每个 Bot 在 DSH 左侧栏注册
 从 GitHub 安装（推荐，版本号与 tag 一致）：
 
 ```bash
-dsh plugin --profile <profile 名> add github:mufeng-git/dsh-bot-team-tab#v0.4.2
+dsh plugin --profile <profile 名> add github:mufeng-git/dsh-bot-team-tab#v0.4.3
 ```
 
 本地开发时改为文件源，二者互斥：
@@ -64,6 +64,22 @@ dsh plugin --profile <profile 名> add file:/绝对路径/plugins/dsh-bot-team-t
 
 点击无反应时，先确认日志中的 `v` 与已安装版本一致，再看 `jump:*` 与 `services:*` 两条链路。
 
+## 工程工具
+
+仓库里带两个开发脚本，装机后的副本里没有（`package.json` 的 `files` 不发布 `scripts/`）。
+
+```bash
+# 读宿主 app.asar 里的插槽契约：列路径 / 看内容 / 解包 / 字节偏移反查文件
+npm run asar -- paths "D:/soft/dhs/resources/app.asar" sidebar.panellist
+npm run asar -- cat "D:/soft/dhs/resources/app.asar" SidebarRoot.tsx
+
+# 装进 profile 并校验三点一致（profile 版本 / client.js sha256 / VERSION 常量）
+npm run deploy
+npm run deploy -- --profile desktop --spec github:mufeng-git/dsh-bot-team-tab#v0.4.3
+```
+
+开工前的硬性检查见 [docs/checklist.md](docs/checklist.md)；已经核实过的宿主契约见 [DSH API 核实记录](docs/design/DSH-API-核实记录.md)。
+
 ## 开发与自测
 
 ```bash
@@ -89,6 +105,7 @@ node --test --test-isolation=none --test-force-exit test/navigation.test.mjs
 
 | 版本 | 变更 |
 | --- | --- |
+| 0.4.3 | 工程工具版：`asar.mjs` 读宿主契约、`deploy.mjs` 一键装机并校验版本与 sha256、`docs/checklist.md` 开工清单、版本一致性断言；界面无变化。 |
 | 0.4.2 | 工程规范版：自测迁移到 node:test（18 用例 / 61 断言）、新增 `npm run check` 与文档死链检查、新增 DSH API 核实记录与发布文档；UI 行为无变化。 |
 | 0.4.1 | 修正版本号常量（0.4.0 代码已带字形，但 `VERSION` 仍报 0.3.4，日志无法区分版本）。 |
 | 0.4.0 | 行图标按 Bot 的 `avatar.shape` 重绘为单色线性字形（7 种 + 回退），形状变化后自动重注册。 |

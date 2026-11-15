@@ -2,6 +2,13 @@
 
 按版本记录**交付了什么**与**已知限制**；每版的验收范围、产物校验值与回退方式见 docs/releases/<版本>.md。
 
+## 0.4.3
+
+- 新增 `scripts/asar.mjs`：不装任何依赖地读 `app.asar`（`paths` / `ls` / `cat` / `get` / `find`），查宿主插槽契约不再靠猜。
+- 新增 `scripts/deploy.mjs`：一条命令装机，并校验 profile 版本、`lib/client.js` 的 sha256、`VERSION` 常量三点一致。
+- 新增 `docs/checklist.md`：开工前检查清单，每条附一次真实返工作为反例。
+- 新增 `test/version.test.mjs`：守住 `package.json` 与 `VERSION` 常量一致（0.4.0 曾只改前者）。
+- `npm test` 覆盖 6 个文件 / 19 用例 / 63 条断言；界面与交互无变化。
 ## 0.4.2 — 工程规范
 
 - 自测从一份 217 行脚本迁移到 node:test：5 个测试文件、18 个用例、61 条断言。
